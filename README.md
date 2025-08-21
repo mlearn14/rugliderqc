@@ -9,7 +9,7 @@ Full documentation of this repo can be found in the [wiki](https://github.com/ru
 
 ## Installation
 
-`git clone https://github.com/rucool/rugliderqc.git`
+`git clone https://github.com/mlearn14/rugliderqc.git`
 
 `cd rugliderqc`
 
