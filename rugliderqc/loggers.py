@@ -8,13 +8,24 @@ import logging
 
 def logfile_basename():
     user = pwd.getpwuid(os.getuid())[0]
-    return f'/home/glideradm/logs/{user}-glider_qc.log'
+    return f"/home/glideradm/logs/{user}-glider_qc.log"
 
 
 def logfile_deploymentname(deployment, dataset_type, cdm_data_type, mode):
     user = pwd.getpwuid(os.getuid())[0]
-    logfilename = '-'.join([user, datetime.now().strftime('%Y%m%d') + '_' + deployment,
-                            dataset_type, cdm_data_type, mode, 'qc']) + '.log'
+    logfilename = (
+        "-".join(
+            [
+                user,
+                datetime.now().strftime("%Y%m%d") + "_" + deployment,
+                dataset_type,
+                cdm_data_type,
+                mode,
+                "qc",
+            ]
+        )
+        + ".log"
+    )
 
     return logfilename
 
@@ -24,7 +35,9 @@ def setup_logger(name, loglevel, logfile):
 
     # if the logger doesn't already exist, set it up
     if not logger.handlers:
-        log_format = logging.Formatter('%(asctime)s%(module)s:%(levelname)s:%(message)s [line %(lineno)d]')
+        log_format = logging.Formatter(
+            "%(asctime)s%(module)s:%(levelname)s:%(message)s [line %(lineno)d]"
+        )
         handler = logging.FileHandler(logfile)
         handler.setFormatter(log_format)
 

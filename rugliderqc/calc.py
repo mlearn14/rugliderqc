@@ -46,15 +46,24 @@ def phcalc(vrs, press, temp, salt, k0, k2, pcoefs):
 
     # BISULFIDE DISSCIATION CONSTANT AT T,S AND IONIC STRENGTH(mol/kg solution)
     # Dickson et al. 2007: Chap 5, p12 Eq 33
-    Khso4 = np.exp(-4276.1 / Tk + 141.328 - 23.093 * np.log(Tk) + (-13856. / Tk + 324.57 - 47.986 * np.log(Tk))
-                   * IonS**0.5 + (35474. / Tk - 771.54 + 114.723 * np.log(Tk)) * IonS - 2698 / Tk * IonS**1.5
-                   + 1776 / Tk * IonS**2 + np.log(1 - 0.001005 * salt))
+    Khso4 = np.exp(
+        -4276.1 / Tk
+        + 141.328
+        - 23.093 * np.log(Tk)
+        + (-13856.0 / Tk + 324.57 - 47.986 * np.log(Tk)) * IonS**0.5
+        + (35474.0 / Tk - 771.54 + 114.723 * np.log(Tk)) * IonS
+        - 2698 / Tk * IonS**1.5
+        + 1776 / Tk * IonS**2
+        + np.log(1 - 0.001005 * salt)
+    )
 
     # Millero 1983 Chemical Oceanography vol 8
     # partial molar volume and compressibility of HSO4 in seawater.   delta v is cm^3
     deltaVHSO4 = -18.03 + 0.0466 * temp + 0.000316 * temp**2
     KappaHSO4 = (-4.53 + 0.09 * temp) / 1000
-    lnKhso4fac = (-deltaVHSO4 + 0.5 * KappaHSO4 * (press / 10)) * (press / 10) / (R * 10. * Tk)
+    lnKhso4fac = (
+        (-deltaVHSO4 + 0.5 * KappaHSO4 * (press / 10)) * (press / 10) / (R * 10.0 * Tk)
+    )
 
     # bisulfate association constant at T, S, P
     Khso4TPS = Khso4 * np.exp(lnKhso4fac)
@@ -63,15 +72,20 @@ def phcalc(vrs, press, temp, salt, k0, k2, pcoefs):
     # ADH is the Debye Huckel constant, calcualted as a polynomial fit to data in Khoo et al. 1977, doi:10.1021/ac50009a016
     # See Martz et al. 2010, DOI 10.4319/lom.2010.8.172, p175
     # Typo in paper 2nd term should be e-4 not e-6
-    ADH = (3.4286e-6 * temp**2 + 6.7524e-4 * temp + 0.49172143)
-    log10gammaHCl = -ADH * np.sqrt(IonS) / (1 + 1.394 * np.sqrt(IonS)) + (0.08885 - 0.000111 * temp) * IonS
+    ADH = 3.4286e-6 * temp**2 + 6.7524e-4 * temp + 0.49172143
+    log10gammaHCl = (
+        -ADH * np.sqrt(IonS) / (1 + 1.394 * np.sqrt(IonS))
+        + (0.08885 - 0.000111 * temp) * IonS
+    )
 
     # Millero 1983 partial molar volume of HCl in seawater. deltaV is cm^3
     deltaVHCl = 17.85 + 0.1044 * temp - 0.001316 * temp**2
 
     # make activity coefficient of HCl more accurate by including the effect of pressure on partial molar volume of HCl
     # last divide by 10 is for units in cm^3 vs m^3 and the Pascal vs bar units in mks constants. (Meter/kilo/second)
-    log10gammaHCLtP = log10gammaHCl + deltaVHCl * (press / 10) / (R * Tk * ln10) / 2. / 10
+    log10gammaHCLtP = (
+        log10gammaHCl + deltaVHCl * (press / 10) / (R * Tk * ln10) / 2.0 / 10
+    )
 
     if isinstance(k2, list):
         # added by L. Garzio with input from Sea-Bird to incorporate k2(P) correction
@@ -80,7 +94,11 @@ def phcalc(vrs, press, temp, salt, k0, k2, pcoefs):
         # Polynomial K2, ie K2(P). From MBARI processing code base 11042022
         EoT = temp * np.polyval(k2, press)
 
-        phfree = (vrs - EoT - pcoefs - k0) / (R * Tk / F * ln10) + np.log(Cltotal) / ln10 + 2 * log10gammaHCLtP  # mol/kg-H2O scale
+        phfree = (
+            (vrs - EoT - pcoefs - k0) / (R * Tk / F * ln10)
+            + np.log(Cltotal) / ln10
+            + 2 * log10gammaHCLtP
+        )  # mol/kg-H2O scale
     else:
         # Sensor reference potential
         k0T = k0 + k2 * temp  # temp in deg C
@@ -95,7 +113,11 @@ def phcalc(vrs, press, temp, salt, k0, k2, pcoefs):
         # pH on free scale then corrected to get to pH total on mol/kg sw scale
         # pHinsituFree = (Vrs - temp offset - press offset) / (R * Tk / F * ln10) + log(Cltotal) / ln10 + 2 * log10gammaHCLtP
         # this will be mol kg H2O. need to convert to mol/kg sw
-        phfree = (vrs - k0TP) / (R * Tk / F * ln10) + np.log(Cltotal) / ln10 + 2 * log10gammaHCLtP  # mol/kg-H2O scale
+        phfree = (
+            (vrs - k0TP) / (R * Tk / F * ln10)
+            + np.log(Cltotal) / ln10
+            + 2 * log10gammaHCLtP
+        )  # mol/kg-H2O scale
 
     # CONVERT TO mol/kg-sw scale - JP 2/4/16
     phfree = phfree - np.log10(1 - 0.001005 * salt)  # mol/kg-sw scale

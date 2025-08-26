@@ -43,7 +43,9 @@ def check_zeros(varname_dict, dataset, ds_modified, var1, var2):
             dointersect_idx = np.intersect1d(var1_zero_idx, var2_zero_idx)
             if len(dointersect_idx) > 0:
                 for cv, varname in variables.items():
-                    dataset[varname][dointersect_idx] = dataset[varname].encoding['_FillValue']
+                    dataset[varname][dointersect_idx] = dataset[varname].encoding[
+                        "_FillValue"
+                    ]
                     ds_modified += 1
 
     return ds_modified
@@ -59,86 +61,124 @@ def main(args):
     test = args.test
 
     logFile_base = logfile_basename()
-    logging_base = setup_logger('logging_base', loglevel, logFile_base)
+    logging_base = setup_logger("logging_base", loglevel, logFile_base)
 
     data_home, deployments_root = cf.find_glider_deployments_rootdir(logging_base, test)
     if isinstance(deployments_root, str):
 
         # Set the default qc configuration path
-        qc_config_root = os.path.join(data_home, 'qc', 'config')
+        qc_config_root = os.path.join(data_home, "qc", "config")
         if not os.path.isdir(qc_config_root):
-            logging_base.warning('Invalid QC config root: {:s}'.format(qc_config_root))
+            logging_base.warning("Invalid QC config root: {:s}".format(qc_config_root))
             return 1
 
         for deployment in args.deployments:
 
-            data_path, deployment_location = cf.find_glider_deployment_datapath(logging_base, deployment, deployments_root,
-                                                                                dataset_type, cdm_data_type, mode)
+            data_path, deployment_location = cf.find_glider_deployment_datapath(
+                logging_base,
+                deployment,
+                deployments_root,
+                dataset_type,
+                cdm_data_type,
+                mode,
+            )
 
             if not data_path:
-                logging_base.error('{:s} data directory not found:'.format(deployment))
+                logging_base.error("{:s} data directory not found:".format(deployment))
                 continue
 
-            if not os.path.isdir(os.path.join(deployment_location, 'proc-logs')):
-                logging_base.error('{:s} deployment proc-logs directory not found:'.format(deployment))
+            if not os.path.isdir(os.path.join(deployment_location, "proc-logs")):
+                logging_base.error(
+                    "{:s} deployment proc-logs directory not found:".format(deployment)
+                )
                 continue
 
-            logfilename = logfile_deploymentname(deployment, dataset_type, cdm_data_type, mode)
-            logFile = os.path.join(deployment_location, 'proc-logs', logfilename)
-            logging = setup_logger('logging', loglevel, logFile)
+            logfilename = logfile_deploymentname(
+                deployment, dataset_type, cdm_data_type, mode
+            )
+            logFile = os.path.join(deployment_location, "proc-logs", logfilename)
+            logging = setup_logger("logging", loglevel, logFile)
 
-            logging.info('Starting QC process')
+            logging.info("Starting QC process")
 
             # Set the deployment qc configuration path
-            deployment_location = data_path.split('/data')[0]
-            deployment_qc_config_root = os.path.join(deployment_location, 'config', 'qc')
+            deployment_location = data_path.split("/data")[0]
+            deployment_qc_config_root = os.path.join(
+                deployment_location, "config", "qc"
+            )
             if not os.path.isdir(deployment_qc_config_root):
-                logging.warning('Invalid deployment QC config root: {:s}'.format(deployment_qc_config_root))
+                logging.warning(
+                    "Invalid deployment QC config root: {:s}".format(
+                        deployment_qc_config_root
+                    )
+                )
 
             # Determine if the test should be run or not
-            qctests_config_file = os.path.join(deployment_qc_config_root, 'qctests.yml')
+            qctests_config_file = os.path.join(deployment_qc_config_root, "qctests.yml")
             if os.path.isfile(qctests_config_file):
                 qctests_config_dict = loadconfig(qctests_config_file)
-                if not qctests_config_dict['check_science_variables']:
+                if not qctests_config_dict["check_science_variables"]:
                     logging.warning(
-                        'Not checking files for science vars because test is turned off, check: {:s}'.format(
-                            qctests_config_file))
+                        "Not checking files for science vars because test is turned off, check: {:s}".format(
+                            qctests_config_file
+                        )
+                    )
                     continue
 
-            logging.info('Checking for science variables: {:s}'.format(os.path.join(data_path, 'qc_queue')))
+            logging.info(
+                "Checking for science variables: {:s}".format(
+                    os.path.join(data_path, "qc_queue")
+                )
+            )
 
             # Get all of the possible CTD variable names from the config file
-            ctd_config_file = os.path.join(qc_config_root, 'ctd_variables.yml')
+            ctd_config_file = os.path.join(qc_config_root, "ctd_variables.yml")
             if not os.path.isfile(ctd_config_file):
-                logging.error('Invalid CTD variable name config file: {:s}.'.format(ctd_config_file))
+                logging.error(
+                    "Invalid CTD variable name config file: {:s}.".format(
+                        ctd_config_file
+                    )
+                )
                 status = 1
                 continue
 
             ctd_vars = loadconfig(ctd_config_file)
 
             # Get dissolved oxygen variable names
-            oxygen_config_file = os.path.join(qc_config_root, 'oxygen_variables.yml')
+            oxygen_config_file = os.path.join(qc_config_root, "oxygen_variables.yml")
             if not os.path.isfile(oxygen_config_file):
-                logging.error('Invalid DO variable name config file: {:s}.'.format(oxygen_config_file))
+                logging.error(
+                    "Invalid DO variable name config file: {:s}.".format(
+                        oxygen_config_file
+                    )
+                )
                 status = 1
                 continue
 
             oxygen_vars = loadconfig(oxygen_config_file)
 
             # Get list of science variables
-            science_variables = os.path.join(qc_config_root, 'science_variables.txt')
+            science_variables = os.path.join(qc_config_root, "science_variables.txt")
             if not os.path.isfile(science_variables):
-                logging.error('Invalid science variables config file: {:s}.'.format(science_variables))
+                logging.error(
+                    "Invalid science variables config file: {:s}.".format(
+                        science_variables
+                    )
+                )
                 status = 1
                 continue
 
-            sci_vars = open(science_variables, 'r').read().split('\n')
+            sci_vars = open(science_variables, "r").read().split("\n")
 
             # List the netcdf files in qc_queue
-            ncfiles = sorted(glob.glob(os.path.join(data_path, 'qc_queue', '*.nc')))
+            ncfiles = sorted(glob.glob(os.path.join(data_path, "qc_queue", "*.nc")))
 
             if len(ncfiles) == 0:
-                logging.error(' 0 files found to check: {:s}'.format(os.path.join(data_path, 'qc_queue')))
+                logging.error(
+                    " 0 files found to check: {:s}".format(
+                        os.path.join(data_path, "qc_queue")
+                    )
+                )
                 status = 1
                 continue
 
@@ -146,19 +186,19 @@ def main(args):
             summary = 0
             zeros_removed = 0
             for f in ncfiles:
-                logging.debug(f'{f}')
+                logging.debug(f"{f}")
                 modified = 0
                 try:
                     with xr.open_dataset(f, decode_times=False) as ds:
                         ds = ds.load()
                 except OSError as e:
-                    logging.error('Error reading file {:s} ({:})'.format(f, e))
-                    os.rename(f, f'{f}.bad')
+                    logging.error("Error reading file {:s} ({:})".format(f, e))
+                    os.rename(f, f"{f}.bad")
                     status = 1
                     continue
                 except ValueError as e:
-                    logging.error('Error reading file {:s} ({:})'.format(f, e))
-                    os.rename(f, f'{f}.bad')
+                    logging.error("Error reading file {:s} ({:})".format(f, e))
+                    os.rename(f, f"{f}.bad")
                     status = 1
                     continue
 
@@ -166,16 +206,24 @@ def main(args):
                 ds_sci_vars = list(set(ds.data_vars).intersection(set(sci_vars)))
 
                 if len(ds_sci_vars) == 0:
-                    os.rename(f, f'{f}.nosci')
-                    logging.info('Science variables not found in file: {:s}'.format(f))
+                    os.rename(f, f"{f}.nosci")
+                    logging.info("Science variables not found in file: {:s}".format(f))
                     summary += 1
                 else:
                     # Set CTD values to fill values where conductivity and temperature both = 0.00
                     # Try all versions of CTD variable names
-                    modified = check_zeros(ctd_vars, ds, modified, 'conductivity', 'temperature')
+                    modified = check_zeros(
+                        ctd_vars, ds, modified, "conductivity", "temperature"
+                    )
 
                     # Set DO values to fill values where oxygen_concentration and oxygen_saturation both = 0.00
-                    modified = check_zeros(oxygen_vars, ds, modified, 'oxygen_concentration', 'optode_water_temperature')
+                    modified = check_zeros(
+                        oxygen_vars,
+                        ds,
+                        modified,
+                        "oxygen_concentration",
+                        "optode_water_temperature",
+                    )
 
                 ds.to_netcdf(f)
 
@@ -183,44 +231,64 @@ def main(args):
                 if modified > 0:
                     zeros_removed += 1
 
-            logging.info('Found {:} files without science variables (of {:} total files)'.format(summary, len(ncfiles)))
-            logging.info('Removed 0.00 values (TWRC fill values) for CTD and/or DO variables in {:} files (of {:} '
-                         'total files)'.format(zeros_removed, len(ncfiles)))
+            logging.info(
+                "Found {:} files without science variables (of {:} total files)".format(
+                    summary, len(ncfiles)
+                )
+            )
+            logging.info(
+                "Removed 0.00 values (TWRC fill values) for CTD and/or DO variables in {:} files (of {:} "
+                "total files)".format(zeros_removed, len(ncfiles))
+            )
         return status
 
 
-if __name__ == '__main__':
-    arg_parser = argparse.ArgumentParser(description=main.__doc__,
-                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+if __name__ == "__main__":
+    arg_parser = argparse.ArgumentParser(
+        description=main.__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
 
-    arg_parser.add_argument('deployments',
-                            nargs='+',
-                            help='Glider deployment name(s) formatted as glider-YYYYmmddTHHMM')
+    arg_parser.add_argument(
+        "deployments",
+        nargs="+",
+        help="Glider deployment name(s) formatted as glider-YYYYmmddTHHMM",
+    )
 
-    arg_parser.add_argument('-m', '--mode',
-                            help='Deployment dataset status',
-                            choices=['rt', 'delayed'],
-                            default='rt')
+    arg_parser.add_argument(
+        "-m",
+        "--mode",
+        help="Deployment dataset status",
+        choices=["rt", "delayed"],
+        default="rt",
+    )
 
-    arg_parser.add_argument('--level',
-                            choices=['sci', 'ngdac'],
-                            default='sci',
-                            help='Dataset type')
+    arg_parser.add_argument(
+        "--level", choices=["sci", "ngdac"], default="sci", help="Dataset type"
+    )
 
-    arg_parser.add_argument('-d', '--cdm_data_type',
-                            help='Dataset type',
-                            choices=['profile'],
-                            default='profile')
+    arg_parser.add_argument(
+        "-d",
+        "--cdm_data_type",
+        help="Dataset type",
+        choices=["profile"],
+        default="profile",
+    )
 
-    arg_parser.add_argument('-l', '--loglevel',
-                            help='Verbosity level',
-                            type=str,
-                            choices=['debug', 'info', 'warning', 'error', 'critical'],
-                            default='info')
+    arg_parser.add_argument(
+        "-l",
+        "--loglevel",
+        help="Verbosity level",
+        type=str,
+        choices=["debug", "info", "warning", "error", "critical"],
+        default="info",
+    )
 
-    arg_parser.add_argument('-test', '--test',
-                            help='Point to the environment variable key GLIDER_DATA_HOME_TEST for testing.',
-                            action='store_true')
+    arg_parser.add_argument(
+        "-test",
+        "--test",
+        help="Point to the environment variable key GLIDER_DATA_HOME_TEST for testing.",
+        action="store_true",
+    )
 
     parsed_args = arg_parser.parse_args()
 

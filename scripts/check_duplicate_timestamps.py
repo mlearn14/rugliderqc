@@ -28,62 +28,88 @@ def main(args):
     test = args.test
 
     logFile_base = logfile_basename()
-    logging_base = setup_logger('logging_base', loglevel, logFile_base)
+    logging_base = setup_logger("logging_base", loglevel, logFile_base)
 
     data_home, deployments_root = cf.find_glider_deployments_rootdir(logging_base, test)
     if isinstance(deployments_root, str):
 
         for deployment in args.deployments:
 
-            data_path, deployment_location = cf.find_glider_deployment_datapath(logging_base, deployment, deployments_root,
-                                                                                dataset_type, cdm_data_type, mode)
+            data_path, deployment_location = cf.find_glider_deployment_datapath(
+                logging_base,
+                deployment,
+                deployments_root,
+                dataset_type,
+                cdm_data_type,
+                mode,
+            )
 
             if not data_path:
-                logging_base.error('{:s} data directory not found:'.format(deployment))
+                logging_base.error("{:s} data directory not found:".format(deployment))
                 continue
 
-            if not os.path.isdir(os.path.join(deployment_location, 'proc-logs')):
-                logging_base.error('{:s} deployment proc-logs directory not found:'.format(deployment))
+            if not os.path.isdir(os.path.join(deployment_location, "proc-logs")):
+                logging_base.error(
+                    "{:s} deployment proc-logs directory not found:".format(deployment)
+                )
                 continue
 
-            logfilename = logfile_deploymentname(deployment, dataset_type, cdm_data_type, mode)
-            logFile = os.path.join(deployment_location, 'proc-logs', logfilename)
-            logging = setup_logger('logging', loglevel, logFile)
+            logfilename = logfile_deploymentname(
+                deployment, dataset_type, cdm_data_type, mode
+            )
+            logFile = os.path.join(deployment_location, "proc-logs", logfilename)
+            logging = setup_logger("logging", loglevel, logFile)
 
             # Set the deployment qc configuration path
-            deployment_location = data_path.split('/data')[0]
-            deployment_qc_config_root = os.path.join(deployment_location, 'config', 'qc')
+            deployment_location = data_path.split("/data")[0]
+            deployment_qc_config_root = os.path.join(
+                deployment_location, "config", "qc"
+            )
             if not os.path.isdir(deployment_qc_config_root):
-                logging.warning('Invalid deployment QC config root: {:s}'.format(deployment_qc_config_root))
+                logging.warning(
+                    "Invalid deployment QC config root: {:s}".format(
+                        deployment_qc_config_root
+                    )
+                )
 
             # Determine if the test should be run or not
-            qctests_config_file = os.path.join(deployment_qc_config_root, 'qctests.yml')
+            qctests_config_file = os.path.join(deployment_qc_config_root, "qctests.yml")
             if os.path.isfile(qctests_config_file):
                 qctests_config_dict = loadconfig(qctests_config_file)
-                if not qctests_config_dict['check_duplicate_timestamps']:
+                if not qctests_config_dict["check_duplicate_timestamps"]:
                     logging.warning(
-                        'Not checking files for duplicated timestamps because test is turned off, check: {:s}'.format(
-                            qctests_config_file))
+                        "Not checking files for duplicated timestamps because test is turned off, check: {:s}".format(
+                            qctests_config_file
+                        )
+                    )
                     continue
 
-            logging.info('Checking duplicated timestamps: {:s}'.format(os.path.join(data_path, 'qc_queue')))
+            logging.info(
+                "Checking duplicated timestamps: {:s}".format(
+                    os.path.join(data_path, "qc_queue")
+                )
+            )
 
             # List the netcdf files in qc_queue
-            ncfiles = sorted(glob.glob(os.path.join(data_path, 'qc_queue', '*.nc')))
+            ncfiles = sorted(glob.glob(os.path.join(data_path, "qc_queue", "*.nc")))
 
             if len(ncfiles) == 0:
-                logging.error(' 0 files found to check: {:s}'.format(os.path.join(data_path, 'qc_queue')))
+                logging.error(
+                    " 0 files found to check: {:s}".format(
+                        os.path.join(data_path, "qc_queue")
+                    )
+                )
                 status = 1
                 continue
 
             # Iterate through files and find duplicated timestamps
             duplicates = 0
             for i, f in enumerate(ncfiles):
-                logging.debug(f'{f}')
+                logging.debug(f"{f}")
                 try:
                     ds = xr.open_dataset(f, decode_times=False)
                 except OSError as e:
-                    logging.error('Error reading file {:s} ({:})'.format(ncfiles[i], e))
+                    logging.error("Error reading file {:s} ({:})".format(ncfiles[i], e))
                     status = 1
                     continue
 
@@ -92,7 +118,9 @@ def main(args):
                     f2 = ncfiles[i + 1]
                     ds2 = xr.open_dataset(f2, decode_times=False)
                 except OSError as e:
-                    logging.error('Error reading file {:s} ({:})'.format(ncfiles[i + 1], e))
+                    logging.error(
+                        "Error reading file {:s} ({:})".format(ncfiles[i + 1], e)
+                    )
                     status = 1
                     continue
                 except IndexError:
@@ -101,57 +129,79 @@ def main(args):
                 if set(ds2.time.values).issubset(ds.time.values):
                     # if timestamps from ds2 are completely contained in timestamps from ds
                     # rename ds2
-                    os.rename(f2, f'{f2}.duplicate')
-                    logging.info('Duplicated timestamps found in file: {:s}'.format(f2))
+                    os.rename(f2, f"{f2}.duplicate")
+                    logging.info("Duplicated timestamps found in file: {:s}".format(f2))
                     duplicates += 1
                 elif set(ds.time.values).issubset(ds2.time.values):
                     # if timestamps from ds are completely contained in timestamps from ds2
                     # rename ds
                     try:
-                        os.rename(f, f'{f}.duplicate')
-                        logging.info('Duplicated timestamps found in file: {:s}'.format(f))
+                        os.rename(f, f"{f}.duplicate")
+                        logging.info(
+                            "Duplicated timestamps found in file: {:s}".format(f)
+                        )
                         duplicates += 1
-                    except FileNotFoundError:  # file has already been identified as a duplicate
+                    except (
+                        FileNotFoundError
+                    ):  # file has already been identified as a duplicate
                         continue
                 else:
                     continue
 
-            logging.info('Found {:} duplicated files (of {:} total files)'.format(duplicates, len(ncfiles)))
+            logging.info(
+                "Found {:} duplicated files (of {:} total files)".format(
+                    duplicates, len(ncfiles)
+                )
+            )
         return status
 
 
-if __name__ == '__main__':
-    arg_parser = argparse.ArgumentParser(description=main.__doc__,
-                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+if __name__ == "__main__":
+    arg_parser = argparse.ArgumentParser(
+        description=main.__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
 
-    arg_parser.add_argument('deployments',
-                            nargs='+',
-                            help='Glider deployment name(s) formatted as glider-YYYYmmddTHHMM')
+    arg_parser.add_argument(
+        "deployments",
+        nargs="+",
+        help="Glider deployment name(s) formatted as glider-YYYYmmddTHHMM",
+    )
 
-    arg_parser.add_argument('-m', '--mode',
-                            help='Deployment dataset status',
-                            choices=['rt', 'delayed'],
-                            default='rt')
+    arg_parser.add_argument(
+        "-m",
+        "--mode",
+        help="Deployment dataset status",
+        choices=["rt", "delayed"],
+        default="rt",
+    )
 
-    arg_parser.add_argument('--level',
-                            choices=['sci', 'ngdac'],
-                            default='sci',
-                            help='Dataset type')
+    arg_parser.add_argument(
+        "--level", choices=["sci", "ngdac"], default="sci", help="Dataset type"
+    )
 
-    arg_parser.add_argument('-d', '--cdm_data_type',
-                            help='Dataset type',
-                            choices=['profile'],
-                            default='profile')
+    arg_parser.add_argument(
+        "-d",
+        "--cdm_data_type",
+        help="Dataset type",
+        choices=["profile"],
+        default="profile",
+    )
 
-    arg_parser.add_argument('-l', '--loglevel',
-                            help='Verbosity level',
-                            type=str,
-                            choices=['debug', 'info', 'warning', 'error', 'critical'],
-                            default='info')
+    arg_parser.add_argument(
+        "-l",
+        "--loglevel",
+        help="Verbosity level",
+        type=str,
+        choices=["debug", "info", "warning", "error", "critical"],
+        default="info",
+    )
 
-    arg_parser.add_argument('-test', '--test',
-                            help='Point to the environment variable key GLIDER_DATA_HOME_TEST for testing.',
-                            action='store_true')
+    arg_parser.add_argument(
+        "-test",
+        "--test",
+        help="Point to the environment variable key GLIDER_DATA_HOME_TEST for testing.",
+        action="store_true",
+    )
 
     parsed_args = arg_parser.parse_args()
 

@@ -10,37 +10,48 @@ import argparse
 import sys
 import scripts
 
-arg_parser = argparse.ArgumentParser(description="QC RUCOOL's glider data",
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+arg_parser = argparse.ArgumentParser(
+    description="QC RUCOOL's glider data",
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+)
 
-arg_parser.add_argument('deployments',
-                        nargs='+',
-                        help='Glider deployment name(s) formatted as glider-YYYYmmddTHHMM')
+arg_parser.add_argument(
+    "deployments",
+    nargs="+",
+    help="Glider deployment name(s) formatted as glider-YYYYmmddTHHMM",
+)
 
-arg_parser.add_argument('-m', '--mode',
-                        help='Deployment dataset status',
-                        choices=['rt', 'delayed'],
-                        default='rt')
+arg_parser.add_argument(
+    "-m",
+    "--mode",
+    help="Deployment dataset status",
+    choices=["rt", "delayed"],
+    default="rt",
+)
 
-arg_parser.add_argument('--level',
-                        choices=['sci', 'ngdac'],
-                        default='sci',
-                        help='Dataset type')
+arg_parser.add_argument(
+    "--level", choices=["sci", "ngdac"], default="sci", help="Dataset type"
+)
 
-arg_parser.add_argument('-d', '--cdm_data_type',
-                        help='Dataset type',
-                        choices=['profile'],
-                        default='profile')
+arg_parser.add_argument(
+    "-d", "--cdm_data_type", help="Dataset type", choices=["profile"], default="profile"
+)
 
-arg_parser.add_argument('-l', '--loglevel',
-                        help='Verbosity level',
-                        type=str,
-                        choices=['debug', 'info', 'warning', 'error', 'critical'],
-                        default='info')
+arg_parser.add_argument(
+    "-l",
+    "--loglevel",
+    help="Verbosity level",
+    type=str,
+    choices=["debug", "info", "warning", "error", "critical"],
+    default="info",
+)
 
-arg_parser.add_argument('-test', '--test',
-                        help='Point to the environment variable key GLIDER_DATA_HOME_TEST for testing.',
-                        action='store_true')
+arg_parser.add_argument(
+    "-test",
+    "--test",
+    help="Point to the environment variable key GLIDER_DATA_HOME_TEST for testing.",
+    action="store_true",
+)
 
 parsed_args = arg_parser.parse_args()
 
