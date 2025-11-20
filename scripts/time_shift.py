@@ -20,6 +20,7 @@ from shapely.geometry import Polygon, MultiPolygon
 from shapely.ops import polygonize
 import rugliderqc.common as cf
 from rugliderqc.loggers import logfile_basename, setup_logger, logfile_deploymentname
+
 np.set_printoptions(suppress=True)
 
 
@@ -31,11 +32,13 @@ def apply_qc(dataset, varname):
     :param varname: sensor variable name (e.g. dissolved_oxygen)
     """
     datacopy = dataset[varname].copy()
-    for qv in [x for x in dataset.data_vars if f'{varname}_qartod' in x]:
+    for qv in [x for x in dataset.data_vars if f"{varname}_qartod" in x]:
         qv_vals = dataset[qv].values
-        qv_idx = np.where(np.logical_or(np.logical_or(qv_vals == 2, qv_vals == 3), qv_vals == 4))[0]
+        qv_idx = np.where(
+            np.logical_or(np.logical_or(qv_vals == 2, qv_vals == 3), qv_vals == 4)
+        )[0]
         datacopy[qv_idx] = np.nan
-    if 'ph_ref_voltage' in varname:
+    if "ph_ref_voltage" in varname:
         zeros = np.where(datacopy == 0.0)[0]
         datacopy[zeros] = np.nan
     return datacopy
@@ -52,8 +55,7 @@ def apply_time_shift(df, varname, shift_seconds, merge_original=False):
     """
     # split off the variable and profile direction identifiers into a separate dataframe
     try:
-        sdf = pd.DataFrame(dict(shifted_var=df[varname],
-                                downs=df['downs']))
+        sdf = pd.DataFrame(dict(shifted_var=df[varname], downs=df["downs"]))
     except KeyError:
         sdf = pd.DataFrame(dict(shifted_var=df[varname]))
 
@@ -61,25 +63,26 @@ def apply_time_shift(df, varname, shift_seconds, merge_original=False):
     tm_shift = df.index - dt.timedelta(seconds=shift_seconds)
 
     # append the shifted timestamps to the new dataframe and drop the original time index
-    sdf['time_shift'] = tm_shift
+    sdf["time_shift"] = tm_shift
     sdf.reset_index(drop=True, inplace=True)
 
     # rename the new columns and set the shifted timestamps as the index
-    sdf = sdf.rename(columns={'time_shift': 'time',
-                              'downs': 'downs_shifted'})
-    sdf = sdf.set_index('time')
+    sdf = sdf.rename(columns={"time_shift": "time", "downs": "downs_shifted"})
+    sdf = sdf.set_index("time")
 
     if merge_original:
         # merge back into the original dataframe and drop rows with nans
-        df2 = df.merge(sdf, how='outer', left_index=True, right_index=True)
+        df2 = df.merge(sdf, how="outer", left_index=True, right_index=True)
 
         # drop the original variable
-        df2.drop(columns=[varname, 'downs'], inplace=True)
-        df2 = df2.rename(columns={'shifted_var': f'{varname}_shifted',
-                                  'downs_shifted': 'downs'})
+        df2.drop(columns=[varname, "downs"], inplace=True)
+        df2 = df2.rename(
+            columns={"shifted_var": f"{varname}_shifted", "downs_shifted": "downs"}
+        )
     else:
-        df2 = sdf.rename(columns={'shifted_var': f'{varname}_shifted',
-                                  'downs_shifted': 'downs'})
+        df2 = sdf.rename(
+            columns={"shifted_var": f"{varname}_shifted", "downs_shifted": "downs"}
+        )
 
     return df2
 
@@ -115,7 +118,7 @@ def interp_pressure(df):
     :returns: pandas dataframe containing the time-shifted variable, interpolated pressure, and time as the index
     """
     # drop the original time index
-    df['pressure'] = df['pressure'].interpolate(method='linear', limit_direction='both')
+    df["pressure"] = df["pressure"].interpolate(method="linear", limit_direction="both")
 
     return df
 
@@ -133,11 +136,11 @@ def pressure_bins(df, interval=0.25):
     bins.append(bins[-1] + interval)
 
     # calculate the bin for each row
-    df['bin'] = pd.cut(df['pressure'], bins)
+    df["bin"] = pd.cut(df["pressure"], bins)
 
     # calculate depth-binned median
     # used median instead of mean to account for potential unreasonable values not removed by QC
-    df = df.groupby('bin', observed=False).median()
+    df = df.groupby("bin", observed=False).median()
 
     return df
 
@@ -152,64 +155,88 @@ def main(args):
     test = args.test
 
     logFile_base = logfile_basename()
-    logging_base = setup_logger('logging_base', loglevel, logFile_base)
+    logging_base = setup_logger("logging_base", loglevel, logFile_base)
 
     data_home, deployments_root = cf.find_glider_deployments_rootdir(logging_base, test)
     if isinstance(deployments_root, str):
 
         # Set the default qc configuration path
-        qc_config_root = os.path.join(data_home, 'qc', 'config')
+        qc_config_root = os.path.join(data_home, "qc", "config")
         if not os.path.isdir(qc_config_root):
-            logging_base.warning('Invalid QC config root: {:s}'.format(qc_config_root))
+            logging_base.warning("Invalid QC config root: {:s}".format(qc_config_root))
             return 1
 
         for deployment in args.deployments:
 
-            data_path, deployment_location = cf.find_glider_deployment_datapath(logging_base, deployment, deployments_root,
-                                                                                dataset_type, cdm_data_type, mode)
+            data_path, deployment_location = cf.find_glider_deployment_datapath(
+                logging_base,
+                deployment,
+                deployments_root,
+                dataset_type,
+                cdm_data_type,
+                mode,
+            )
 
             if not data_path:
-                logging_base.error('{:s} data directory not found:'.format(deployment))
+                logging_base.error("{:s} data directory not found:".format(deployment))
                 continue
 
-            if not os.path.isdir(os.path.join(deployment_location, 'proc-logs')):
-                logging_base.error('{:s} deployment proc-logs directory not found:'.format(deployment))
+            if not os.path.isdir(os.path.join(deployment_location, "proc-logs")):
+                logging_base.error(
+                    "{:s} deployment proc-logs directory not found:".format(deployment)
+                )
                 continue
 
-            logfilename = logfile_deploymentname(deployment, dataset_type, cdm_data_type, mode)
-            logFile = os.path.join(deployment_location, 'proc-logs', logfilename)
-            logging = setup_logger('logging', loglevel, logFile)
+            logfilename = logfile_deploymentname(
+                deployment, dataset_type, cdm_data_type, mode
+            )
+            logFile = os.path.join(deployment_location, "proc-logs", logfilename)
+            logging = setup_logger("logging", loglevel, logFile)
 
-            logging.info('Calculating optimal time shift: {:s}'.format(os.path.join(data_path, 'qc_queue')))
+            logging.info(
+                "Calculating optimal time shift: {:s}".format(
+                    os.path.join(data_path, "qc_queue")
+                )
+            )
 
             # Set the deployment qc configuration path
-            deployment_location = data_path.split('/data')[0]
-            deployment_qc_config_root = os.path.join(deployment_location, 'config', 'qc')
+            deployment_location = data_path.split("/data")[0]
+            deployment_qc_config_root = os.path.join(
+                deployment_location, "config", "qc"
+            )
             if not os.path.isdir(deployment_qc_config_root):
-                logging.warning('Invalid deployment QC config root: {:s}'.format(deployment_qc_config_root))
+                logging.warning(
+                    "Invalid deployment QC config root: {:s}".format(
+                        deployment_qc_config_root
+                    )
+                )
 
             # Determine if the test should be run or not
-            qctests_config_file = os.path.join(deployment_qc_config_root, 'qctests.yml')
+            qctests_config_file = os.path.join(deployment_qc_config_root, "qctests.yml")
             if os.path.isfile(qctests_config_file):
                 qctests_config_dict = loadconfig(qctests_config_file)
-                if not qctests_config_dict['time_shift']:
+                if not qctests_config_dict["time_shift"]:
                     logging.warning(
-                        'Not calculating time shifts because test is turned off, check: {:s}'.format(
-                            qctests_config_file))
+                        "Not calculating time shifts because test is turned off, check: {:s}".format(
+                            qctests_config_file
+                        )
+                    )
                     continue
 
             # Get the variable names for time shifting from the config file for the deployment. If not provided,
             # optimal time shifts aren't calculated
-            config_file = os.path.join(deployment_qc_config_root, 'time_shift.yml')
+            config_file = os.path.join(deployment_qc_config_root, "time_shift.yml")
             if not os.path.isfile(config_file):
                 logging.warning(
-                    'Time shifts not calculated because deployment config file not specified: {:s}.'.format(
-                        config_file))
+                    "Time shifts not calculated because deployment config file not specified: {:s}.".format(
+                        config_file
+                    )
+                )
                 status = 1
                 continue
 
             config_dict = loadconfig(config_file)
-            shift_dict = config_dict['time_shift']
+            shift_dict = config_dict["time_shift"]
 
             # keep track of each segment's optimal time shift
             segment_shifts = dict()
@@ -217,10 +244,14 @@ def main(args):
                 segment_shifts[k] = np.array([])
 
             # List the netcdf files
-            ncfiles = sorted(glob.glob(os.path.join(data_path, 'qc_queue', '*.nc')))
+            ncfiles = sorted(glob.glob(os.path.join(data_path, "qc_queue", "*.nc")))
 
             if len(ncfiles) == 0:
-                logging.error(' 0 files found to QC: {:s}'.format(os.path.join(data_path, 'qc_queue')))
+                logging.error(
+                    " 0 files found to QC: {:s}".format(
+                        os.path.join(data_path, "qc_queue")
+                    )
+                )
                 status = 1
                 continue
 
@@ -229,23 +260,25 @@ def main(args):
             shifts = np.arange(0, seconds, 1).tolist()
             shifts.append(seconds)
 
-            logging.info('Finding unique source files')
+            logging.info("Finding unique source files")
 
             # group the files by trajectory using the source file attribute
             source_files = []
             for f in ncfiles:
                 try:
                     ds = xr.open_dataset(f, decode_times=False)
-                    source_file = ds.source_file.source_file
+                    source_file = ds.source_file.source_file  # FIXME
                     ds.close()
                 except OSError as e:
-                    logging.error('Error reading file {:s} ({:})'.format(f, e))
+                    logging.error("Error reading file {:s} ({:})".format(f, e))
                     source_file = None
                     status = 1
 
                 source_files.append(source_file)
 
-            unique_source_files, source_file_idx = np.unique(source_files, return_index=True)
+            unique_source_files, source_file_idx = np.unique(
+                source_files, return_index=True
+            )
             source_file_idx = np.append(source_file_idx, len(ncfiles))
             source_file_idx = np.sort(source_file_idx)
 
@@ -258,14 +291,14 @@ def main(args):
 
                 groupfiles = ncfiles[ii:sf_idx]
 
-                add_dict = dict(shift=np.nan, shifted_df='', t0=0, tf=0)
+                add_dict = dict(shift=np.nan, shifted_df="", t0=0, tf=0)
                 for key, values in shift_dict.items():
                     for k, v in add_dict.items():
                         shift_dict[key][k] = copy.deepcopy(v)
 
                 # Iterate through the test variables
                 for testvar in shift_dict:
-                    times = np.array([], dtype='datetime64[ns]')
+                    times = np.array([], dtype="datetime64[ns]")
 
                     # Iterate through profile files in each trajectory, define profile direction and append to df
                     trajectory = pd.DataFrame()
@@ -274,24 +307,28 @@ def main(args):
                         try:
                             ds = xr.open_dataset(f, decode_times=False)
                         except OSError as e:
-                            logging.error('Error reading file {:s} ({:})'.format(f, e))
+                            logging.error("Error reading file {:s} ({:})".format(f, e))
                             status = 1
                             continue
 
                         try:
                             ds[testvar]
                         except KeyError:
-                            logging.debug('{:s} not found in file {:s})'.format(testvar, f))
+                            logging.debug(
+                                "{:s} not found in file {:s})".format(testvar, f)
+                            )
                             status = 1
                             continue
 
-                        dstime = cf.convert_epoch_ts(ds['time'])
+                        dstime = cf.convert_epoch_ts(ds["time"])
                         times = np.append(times, dstime)
 
                         data_idx, pressure_idx = identify_nans(ds, testvar)
 
                         if len(data_idx) == 0:
-                            logging.debug('{:s} data not found in file {:s})'.format(testvar, f))
+                            logging.debug(
+                                "{:s} data not found in file {:s})".format(testvar, f)
+                            )
                             status = 1
                             continue
 
@@ -299,105 +336,163 @@ def main(args):
                         data_copy = apply_qc(ds, testvar)
 
                         # convert to dataframe with pressure
-                        df = data_copy.to_dataframe().merge(ds.pressure.to_dataframe(), on='time')
-                        df = df.dropna(how='all')
+                        df = data_copy.to_dataframe().merge(
+                            ds.pressure.to_dataframe(), on="time"
+                        )
+                        df = df.dropna(how="all")
 
                         # make a dataframe without QC removed for time shifting after the optimal shift is calculated
-                        df_all = ds[testvar].to_dataframe().merge(ds.pressure.to_dataframe(), on='time')
-                        df_all = df_all.dropna(how='all')
+                        df_all = (
+                            ds[testvar]
+                            .to_dataframe()
+                            .merge(ds.pressure.to_dataframe(), on="time")
+                        )
+                        df_all = df_all.dropna(how="all")
 
                         # determine if profile is up or down, append to appropriate dataframe
-                        if ds.pressure.values[pressure_idx][0] > ds.pressure.values[pressure_idx][-1]:
+                        if (
+                            ds.pressure.values[pressure_idx][0]
+                            > ds.pressure.values[pressure_idx][-1]
+                        ):
                             # up cast
-                            df['downs'] = 0
+                            df["downs"] = 0
                         else:
                             # down cast
-                            df['downs'] = 1
-                        trajectory = pd.concat([trajectory, df])  # trajectory = trajectory.append(df)
-                        trajectory_all = pd.concat([trajectory_all, df_all])  # trajectory_all = trajectory_all.append(df_all)
+                            df["downs"] = 1
+                        trajectory = pd.concat(
+                            [trajectory, df]
+                        )  # trajectory = trajectory.append(df)
+                        trajectory_all = pd.concat(
+                            [trajectory_all, df_all]
+                        )  # trajectory_all = trajectory_all.append(df_all)
 
                         ds.close()
 
                     if len(times) == 0:
-                        logging.debug('Variable not found in trajectory files: {}'.format(testvar))
-                        shift_dict[testvar]['shift'] = None
+                        logging.debug(
+                            "Variable not found in trajectory files: {}".format(testvar)
+                        )
+                        shift_dict[testvar]["shift"] = None
                     else:
-                        min_time = pd.to_datetime(np.nanmin(times)).strftime('%Y-%m-%dT%H:%M:%S')
-                        max_time = pd.to_datetime(np.nanmax(times)).strftime('%Y-%m-%dT%H:%M:%S')
+                        min_time = pd.to_datetime(np.nanmin(times)).strftime(
+                            "%Y-%m-%dT%H:%M:%S"
+                        )
+                        max_time = pd.to_datetime(np.nanmax(times)).strftime(
+                            "%Y-%m-%dT%H:%M:%S"
+                        )
 
                         if len(trajectory) == 0:
-                            logging.info('No data available, optimal time shift not calculated'
-                                         ' for {} {} to {}'.format(testvar, min_time, max_time))
+                            logging.info(
+                                "No data available, optimal time shift not calculated"
+                                " for {} {} to {}".format(testvar, min_time, max_time)
+                            )
 
-                            shift_dict[testvar]['shift'] = np.nan
+                            shift_dict[testvar]["shift"] = np.nan
 
                             # add start and end times
-                            shift_dict[testvar]['t0'] = min_time
-                            shift_dict[testvar]['tf'] = max_time
+                            shift_dict[testvar]["t0"] = min_time
+                            shift_dict[testvar]["tf"] = max_time
                         else:
                             # can't calculate area between the curves if there are only downs or ups
-                            if len(np.unique(trajectory['downs'])) == 1:
-                                logging.info('Only ups or downs available, optimal time shift not calculated'
-                                             ' for {} {} to {}'.format(testvar, min_time, max_time))
+                            if len(np.unique(trajectory["downs"])) == 1:
+                                logging.info(
+                                    "Only ups or downs available, optimal time shift not calculated"
+                                    " for {} {} to {}".format(
+                                        testvar, min_time, max_time
+                                    )
+                                )
 
-                                shift_dict[testvar]['shift'] = np.nan
+                                shift_dict[testvar]["shift"] = np.nan
 
                                 # add start and end times
-                                shift_dict[testvar]['t0'] = min_time
-                                shift_dict[testvar]['tf'] = max_time
+                                shift_dict[testvar]["t0"] = min_time
+                                shift_dict[testvar]["tf"] = max_time
                             else:
                                 # check the pressure range
-                                trajectory_pressure_range = calculate_pressure_range(trajectory)
+                                trajectory_pressure_range = calculate_pressure_range(
+                                    trajectory
+                                )
 
                                 # don't calculate area if the trajectory pressure range is <3 dbar
                                 if trajectory_pressure_range < 3:
-                                    logging.info('Profile data spans <3 dbar, optimal time shift not calculated'
-                                                 ' for {} {} to {}'.format(testvar, min_time, max_time))
+                                    logging.info(
+                                        "Profile data spans <3 dbar, optimal time shift not calculated"
+                                        " for {} {} to {}".format(
+                                            testvar, min_time, max_time
+                                        )
+                                    )
 
-                                    shift_dict[testvar]['shift'] = np.nan
+                                    shift_dict[testvar]["shift"] = np.nan
 
                                     # add start and end times
-                                    shift_dict[testvar]['t0'] = min_time
-                                    shift_dict[testvar]['tf'] = max_time
+                                    shift_dict[testvar]["t0"] = min_time
+                                    shift_dict[testvar]["tf"] = max_time
                                 else:
                                     # convert timestamps
-                                    trajectory.index = cf.convert_epoch_ts(trajectory.index)
-                                    trajectory_all.index = cf.convert_epoch_ts(trajectory_all.index)
+                                    trajectory.index = cf.convert_epoch_ts(
+                                        trajectory.index
+                                    )
+                                    trajectory_all.index = cf.convert_epoch_ts(
+                                        trajectory_all.index
+                                    )
 
                                     # removes duplicates and syncs the dataframes so they can be merged when shifted
-                                    trajectory_resample = trajectory.resample('1s').mean()
+                                    trajectory_resample = trajectory.resample(
+                                        "1s"
+                                    ).mean()
 
                                     # For each shift, shift the master dataframes by x seconds, bin data by 0.25 dbar,
                                     # calculate area between curves
                                     areas = []
                                     for shift in shifts:
                                         kwargs = dict()
-                                        kwargs['merge_original'] = True
-                                        trajectory_shift = apply_time_shift(trajectory_resample, testvar, shift,
-                                                                            **kwargs)
-                                        trajectory_interp = interp_pressure(trajectory_shift)
-                                        trajectory_interp.dropna(subset=[f'{testvar}_shifted'], inplace=True)
+                                        kwargs["merge_original"] = True
+                                        trajectory_shift = apply_time_shift(
+                                            trajectory_resample,
+                                            testvar,
+                                            shift,
+                                            **kwargs,
+                                        )
+                                        trajectory_interp = interp_pressure(
+                                            trajectory_shift
+                                        )
+                                        trajectory_interp.dropna(
+                                            subset=[f"{testvar}_shifted"], inplace=True
+                                        )
 
                                         # find down identifiers that were averaged in the resampling and reset
-                                        downs = np.array(trajectory_interp['downs'])
+                                        downs = np.array(trajectory_interp["downs"])
                                         ind = np.argwhere(downs == 0.5).flatten()
                                         downs[ind] = downs[ind - 1]
-                                        trajectory_interp['downs'] = downs
+                                        trajectory_interp["downs"] = downs
 
                                         # after shifting and interpolating pressure, divide df into down and up profiles
-                                        downs_df = trajectory_interp[trajectory_interp['downs'] == 1].copy()
-                                        ups_df = trajectory_interp[trajectory_interp['downs'] == 0].copy()
+                                        downs_df = trajectory_interp[
+                                            trajectory_interp["downs"] == 1
+                                        ].copy()
+                                        ups_df = trajectory_interp[
+                                            trajectory_interp["downs"] == 0
+                                        ].copy()
 
                                         # don't calculate area if a down or up profile group is missing
-                                        if np.logical_or(len(downs_df) == 0, len(ups_df) == 0):
+                                        if np.logical_or(
+                                            len(downs_df) == 0, len(ups_df) == 0
+                                        ):
                                             area = np.nan
                                         else:
                                             # check the pressure range
-                                            downs_pressure_range = calculate_pressure_range(downs_df)
-                                            ups_pressure_range = calculate_pressure_range(ups_df)
+                                            downs_pressure_range = (
+                                                calculate_pressure_range(downs_df)
+                                            )
+                                            ups_pressure_range = (
+                                                calculate_pressure_range(ups_df)
+                                            )
 
                                             # don't calculate area if either profile grouping spans <3 dbar
-                                            if np.logical_or(downs_pressure_range < 3, ups_pressure_range < 3):
+                                            if np.logical_or(
+                                                downs_pressure_range < 3,
+                                                ups_pressure_range < 3,
+                                            ):
                                                 area = np.nan
                                             else:
                                                 # bin data frames
@@ -406,31 +501,48 @@ def main(args):
                                                 ups_binned = pressure_bins(ups_df)
                                                 ups_binned.dropna(inplace=True)
 
-                                                downs_ups = pd.concat([downs_binned, ups_binned.iloc[::-1]])  # downs_ups = downs_binned.append(ups_binned.iloc[::-1])
+                                                downs_ups = pd.concat(
+                                                    [
+                                                        downs_binned,
+                                                        ups_binned.iloc[::-1],
+                                                    ]
+                                                )  # downs_ups = downs_binned.append(ups_binned.iloc[::-1])
 
                                                 # calculate area between curves
-                                                polygon_points = downs_ups.values.tolist()
+                                                polygon_points = (
+                                                    downs_ups.values.tolist()
+                                                )
                                                 polygon_points.append(polygon_points[0])
                                                 polygon = Polygon(polygon_points)
                                                 polygon_lines = polygon.exterior
-                                                polygon_crossovers = polygon_lines.intersection(polygon_lines)
-                                                polygons = polygonize(polygon_crossovers)
+                                                polygon_crossovers = (
+                                                    polygon_lines.intersection(
+                                                        polygon_lines
+                                                    )
+                                                )
+                                                polygons = polygonize(
+                                                    polygon_crossovers
+                                                )
                                                 valid_polygons = MultiPolygon(polygons)
                                                 area = valid_polygons.area
 
                                         areas.append(area)
 
                                     # add start and end times
-                                    shift_dict[testvar]['t0'] = min_time
-                                    shift_dict[testvar]['tf'] = max_time
+                                    shift_dict[testvar]["t0"] = min_time
+                                    shift_dict[testvar]["tf"] = max_time
 
                                     # if >50% of the values are nan, return nan
                                     fraction_nan = np.sum(np.isnan(areas)) / len(areas)
-                                    if fraction_nan > .5:
-                                        shift_dict[testvar]['shift'] = np.nan
+                                    if fraction_nan > 0.5:
+                                        shift_dict[testvar]["shift"] = np.nan
 
-                                        logging.info('Optimal time shift for {} {} to {}: '
-                                                     'undetermined'.format(testvar, min_time, max_time))
+                                        logging.info(
+                                            "Optimal time shift for {} {} to {}: "
+                                            "undetermined".format(
+                                                testvar, min_time, max_time
+                                            )
+                                        )
                                     else:
                                         # find the shift that results in the minimum area between the curves
                                         opt_shift = int(np.nanargmin(areas))
@@ -438,24 +550,39 @@ def main(args):
                                         # if the optimal shift is zero or last shift tested (couldn't find a minimal
                                         # area within the times tested), use the closest non-nan shift from the
                                         # previous segments
-                                        if np.logical_or(opt_shift == 0, opt_shift == np.nanmax(seconds)):
-                                            non_nans = ~np.isnan(segment_shifts[testvar])
+                                        if np.logical_or(
+                                            opt_shift == 0,
+                                            opt_shift == np.nanmax(seconds),
+                                        ):
+                                            non_nans = ~np.isnan(
+                                                segment_shifts[testvar]
+                                            )
                                             try:
-                                                opt_shift = int(segment_shifts[testvar][non_nans][-1])
+                                                opt_shift = int(
+                                                    segment_shifts[testvar][non_nans][
+                                                        -1
+                                                    ]
+                                                )
                                             except IndexError:
                                                 # if there are no previous non-nan optimal shifts, use the default
                                                 # value from the config file
-                                                opt_shift = shift_dict[testvar]['default_shift']
+                                                opt_shift = shift_dict[testvar][
+                                                    "default_shift"
+                                                ]
 
-                                        shift_dict[testvar]['shift'] = opt_shift
+                                        shift_dict[testvar]["shift"] = opt_shift
 
                         # shift the data in the non-QC'd trajectory dataframe by the optimal time shift calculated
                         # if there is no optimal shift calculated, don't create the shifted dataframe
-                        optimal_shift = shift_dict[testvar]['shift']
-                        segment_shifts[testvar] = np.append(segment_shifts[testvar], optimal_shift)
+                        optimal_shift = shift_dict[testvar]["shift"]
+                        segment_shifts[testvar] = np.append(
+                            segment_shifts[testvar], optimal_shift
+                        )
                         if ~np.isnan(optimal_shift):
-                            trajectory_shifted = apply_time_shift(trajectory_all, testvar, optimal_shift)
-                            shift_dict[testvar]['shifted_df'] = trajectory_shifted
+                            trajectory_shifted = apply_time_shift(
+                                trajectory_all, testvar, optimal_shift
+                            )
+                            shift_dict[testvar]["shifted_df"] = trajectory_shifted
 
                 # add the optimal time shifts back into the .nc files
                 for f in groupfiles:
@@ -463,7 +590,7 @@ def main(args):
                         with xr.open_dataset(f, decode_times=False) as ds:
                             ds = ds.load()
                     except OSError as e:
-                        logging.error('Error reading file {:s} ({:})'.format(f, e))
+                        logging.error("Error reading file {:s} ({:})".format(f, e))
                         status = 1
                         continue
 
@@ -473,17 +600,20 @@ def main(args):
                         except KeyError:
                             continue
 
-                        data_shift_varname = f'{testvar}_shifted'
-                        shift_varname = f'{testvar}_optimal_shift'
+                        data_shift_varname = f"{testvar}_shifted"
+                        shift_varname = f"{testvar}_optimal_shift"
 
                         # if there is no optimal shift calculated, the shifted data array is the same as the original
                         # otherwise, apply the time shift to the data
-                        if np.isnan(items['shift']):
+                        if np.isnan(items["shift"]):
                             shifted_data = data.values.copy()
                         else:
-                            df = items['shifted_df']
+                            df = items["shifted_df"]
                             data_time = cf.convert_epoch_ts(data.time)
-                            df_file = df[(df.index >= np.nanmin(data_time)) & (df.index <= np.nanmax(data_time))].copy()
+                            df_file = df[
+                                (df.index >= np.nanmin(data_time))
+                                & (df.index <= np.nanmax(data_time))
+                            ].copy()
                             df_file.dropna(inplace=True)
                             data_df = data.to_dataframe()
                             data_df[data_shift_varname] = np.nan
@@ -494,23 +624,34 @@ def main(args):
                             # insert the shifted data in the location of the closest timestamp from the original file
                             for name, row in df_file.iterrows():
                                 name_idx = np.argmin(abs(data_df.index - name))
-                                data_df.loc[data_df.index[name_idx], data_shift_varname] = row[data_shift_varname]
+                                data_df.loc[
+                                    data_df.index[name_idx], data_shift_varname
+                                ] = row[data_shift_varname]
 
                             # create data array of shifted values
                             shifted_data = np.array(data_df[data_shift_varname])
 
                         # insert the array of shifted values into the original dataset
                         attrs = data.attrs.copy()
-                        attrs['long_name'] = items['long_name']
-                        comment = '{} shifted by the optimal time shift (seconds) determined by grouping down ' \
-                                  'and up profiles for one glider segment, then minimizing the areas between the ' \
-                                  'profiles by testing time shifts between 0 and {} seconds. This is a preliminary ' \
-                                  'variable currently under development.'.format(testvar, seconds)
-                        attrs['comment'] = comment
+                        attrs["long_name"] = items["long_name"]
+                        comment = (
+                            "{} shifted by the optimal time shift (seconds) determined by grouping down "
+                            "and up profiles for one glider segment, then minimizing the areas between the "
+                            "profiles by testing time shifts between 0 and {} seconds. This is a preliminary "
+                            "variable currently under development.".format(
+                                testvar, seconds
+                            )
+                        )
+                        attrs["comment"] = comment
 
                         # Create data array of shifted data
-                        da = xr.DataArray(shifted_data.astype(data.dtype), coords=data.coords, dims=data.dims,
-                                          name=data_shift_varname, attrs=attrs)
+                        da = xr.DataArray(
+                            shifted_data.astype(data.dtype),
+                            coords=data.coords,
+                            dims=data.dims,
+                            name=data_shift_varname,
+                            attrs=attrs,
+                        )
 
                         # use the encoding from the original variable that was time shifted
                         cf.set_encoding(da, original_encoding=data.encoding)
@@ -519,25 +660,32 @@ def main(args):
                         ds[data_shift_varname] = da
 
                         # create data array of the optimal shift (seconds) and insert in original data file
-                        shift_vals = items['shift'] * np.ones(np.shape(data.values))
+                        shift_vals = items["shift"] * np.ones(np.shape(data.values))
 
-                        comment = 'Optimal time shift (seconds) determined by grouping down and up profiles for one ' \
-                                  'glider segment, then minimizing the area between the ' \
-                                  'profiles by testing time shifts between 0 and {} seconds.  This is a preliminary ' \
-                                  'variable currently under development.'.format(seconds)
+                        comment = (
+                            "Optimal time shift (seconds) determined by grouping down and up profiles for one "
+                            "glider segment, then minimizing the area between the "
+                            "profiles by testing time shifts between 0 and {} seconds.  This is a preliminary "
+                            "variable currently under development.".format(seconds)
+                        )
 
                         # set attributes
                         attrs = {
-                            'comment': comment,
-                            'units': 'sec',
-                            'valid_min': 0,
-                            'valid_max': seconds - 1,
-                            'qc_target': testvar
+                            "comment": comment,
+                            "units": "sec",
+                            "valid_min": 0,
+                            "valid_max": seconds - 1,
+                            "qc_target": testvar,
                         }
 
                         # Create data array of optimal shift
-                        da = xr.DataArray(shift_vals.astype('float32'), coords=data.coords, dims=data.dims,
-                                          name=shift_varname, attrs=attrs)
+                        da = xr.DataArray(
+                            shift_vals.astype("float32"),
+                            coords=data.coords,
+                            dims=data.dims,
+                            name=shift_varname,
+                            attrs=attrs,
+                        )
 
                         # define variable encoding
                         cf.set_encoding(da)
@@ -546,53 +694,73 @@ def main(args):
                         ds[shift_varname] = da
 
                     # update the history attr
-                    now = dt.datetime.now(dt.UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
-                    if not hasattr(ds, 'history'):
-                        ds.attrs['history'] = f'{now}: {os.path.basename(__file__)}'
+                    now = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    if not hasattr(ds, "history"):
+                        ds.attrs["history"] = f"{now}: {os.path.basename(__file__)}"
                     else:
-                        ds.attrs['history'] = f'{ds.attrs["history"]} {now}: {os.path.basename(__file__)}'
+                        ds.attrs["history"] = (
+                            f'{ds.attrs["history"]} {now}: {os.path.basename(__file__)}'
+                        )
 
                     ds.to_netcdf(f)
                     ds.close()
                     files_tested += 1
 
-            logging.info('{}: {} of {} files tested.'.format(deployment, files_tested, len(ncfiles)))
+            logging.info(
+                "{}: {} of {} files tested.".format(
+                    deployment, files_tested, len(ncfiles)
+                )
+            )
 
     return status
 
 
-if __name__ == '__main__':
-    arg_parser = argparse.ArgumentParser(description=main.__doc__,
-                                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+if __name__ == "__main__":
+    arg_parser = argparse.ArgumentParser(
+        description=main.__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
 
-    arg_parser.add_argument('deployments',
-                            nargs='+',
-                            help='Glider deployment name(s) formatted as glider-YYYYmmddTHHMM')
+    arg_parser.add_argument(
+        "deployments",
+        nargs="+",
+        help="Glider deployment name(s) formatted as glider-YYYYmmddTHHMM",
+    )
 
-    arg_parser.add_argument('-m', '--mode',
-                            help='Deployment dataset status',
-                            choices=['rt', 'delayed'],
-                            default='rt')
+    arg_parser.add_argument(
+        "-m",
+        "--mode",
+        help="Deployment dataset status",
+        choices=["rt", "delayed"],
+        default="rt",
+    )
 
-    arg_parser.add_argument('--level',
-                            choices=['sci', 'ngdac'],
-                            default='sci',
-                            help='Dataset type')
+    arg_parser.add_argument(
+        "--level", choices=["sci", "ngdac"], default="sci", help="Dataset type"
+    )
 
-    arg_parser.add_argument('-d', '--cdm_data_type',
-                            help='Dataset type',
-                            choices=['profile'],
-                            default='profile')
+    arg_parser.add_argument(
+        "-d",
+        "--cdm_data_type",
+        help="Dataset type",
+        choices=["profile"],
+        default="profile",
+    )
 
-    arg_parser.add_argument('-l', '--loglevel',
-                            help='Verbosity level',
-                            type=str,
-                            choices=['debug', 'info', 'warning', 'error', 'critical'],
-                            default='info')
+    arg_parser.add_argument(
+        "-l",
+        "--loglevel",
+        help="Verbosity level",
+        type=str,
+        choices=["debug", "info", "warning", "error", "critical"],
+        default="info",
+    )
 
-    arg_parser.add_argument('-test', '--test',
-                            help='Point to the environment variable key GLIDER_DATA_HOME_TEST for testing.',
-                            action='store_true')
+    arg_parser.add_argument(
+        "-test",
+        "--test",
+        help="Point to the environment variable key GLIDER_DATA_HOME_TEST for testing.",
+        action="store_true",
+    )
 
     parsed_args = arg_parser.parse_args()
 
