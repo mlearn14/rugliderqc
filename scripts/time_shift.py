@@ -267,6 +267,7 @@ def main(args):
             for f in ncfiles:
                 try:
                     ds = xr.open_dataset(f, decode_times=False)
+                    # FIXME I believe this is just a path?
                     source_file = ds.source_file.source_file
                     ds.close()
                 except OSError as e:

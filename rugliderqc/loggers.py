@@ -8,7 +8,7 @@ import logging
 
 def logfile_basename():
     user = pwd.getpwuid(os.getuid())[0]
-    return f"/home/glideradm/logs/{user}-glider_qc.log"
+    return f"/home/SOMAS_Glider/logs/{user}-glider_qc.log"
 
 
 def logfile_deploymentname(deployment, dataset_type, cdm_data_type, mode):
